@@ -18,6 +18,12 @@
 #include <stdint.h>
 #include <ctime>
 
+#define WIFI_MANAGER_LOG_ENABLE     0
+
+#if WIFI_MANAGER_LOG_ENABLE
+#pragma message("Wifi manager debug log ENABLED")
+#endif
+
 class Esp32Wifi
 {
     private:
@@ -40,7 +46,7 @@ class Esp32Wifi
         uint16_t _localHourShift = 3600; // shift di 1h rispetto all'ora di greenwitch
         uint16_t _timeRefreshFrq = 30000; // frequenza di rischiesta di orario (in ms)
         bool _legalHourIsSetted = false;
-        IPAddress *_myIp;
+        IPAddress _myIp;
         time_t _ntpTimeStamp = (time_t)_TIMESTAMP_DFLT; 
         String _hostname = "ESP32WifiManager";
         String _SSID = "";
