@@ -83,9 +83,9 @@ void Esp32Wifi::_connectToWifi()
         WiFi.setHostname(_hostname.c_str());
         WiFi.begin(_SSID.c_str(), _Passwd.c_str());
         WriteWifiDebugLog("Connessione in corso...");
-        while(!_wifiConnected)
+        while(!_wifiConnected && Timeout > 0)
         {
-            if(WiFi.status() != WL_CONNECTED && Timeout > 0)
+            if(WiFi.status() != WL_CONNECTED)
             {
                 Timeout--;
                 _wifiConnected = false;
