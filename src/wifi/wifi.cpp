@@ -25,12 +25,37 @@ static void WriteWifiDebugLog(String Msg)
 {}
 #endif
 
-Esp32Wifi::Esp32Wifi()
+EspWifi::EspWifi(wifi_mode Mode, 
+                String SSID, 
+                String Passwd, 
+                String Hostname, 
+                String ApSSID, 
+                String ApPasswd)
 {
     _ntpUDP = new WiFiUDP();
     _timeClient = new NTPClient(*_ntpUDP, NTP_SERVER.c_str(), _localHourShift, _timeRefreshFrq);
     _ntpBackUpTimer = 0;
     _myIp = IPAddress(0, 0, 0, 0);
+    _apIp = IPAddress(0, 0, 0, 0);
+    _wifiMode = Mode;
+    _SSID = SSID;
+    _Passwd = Passwd;
+    _hostname = Hostname;
+    _ApSSID = ApSSID;
+    _ApPasswd = ApPasswd;
+}
+
+void EspWifi::_panic()
+{   
+    pinMode(LED_BUILTIN, OUTPUT);
+    while(1)
+    {
+        WriteWifiDebugLog("EspWifi::PANIC");
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(250);
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(250);        
+    }
 }
 
 /**
@@ -38,14 +63,12 @@ Esp32Wifi::Esp32Wifi()
  * 
  * @return SsidFoud 
  */
-bool Esp32Wifi::_searchWifiSsid()
+bool EspWifi::_searchWifiSsid()
 {
     const uint32_t SCAN_PERIOD = 10000;
     uint32_t ScanTime = 0;
     bool SsidFoud = false;
     WriteWifiDebugLog("Ora scansiono le reti wifi");
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
     WiFi.scanNetworks();
 
     // print out Wi-Fi network scan result uppon completion
@@ -75,11 +98,21 @@ bool Esp32Wifi::_searchWifiSsid()
  * @brief Tenta la connessione al wifi dopo aver scansionato e cercato l'ssid impostato
  * 
  */
-void Esp32Wifi::_connectToWifi()
+void EspWifi::_connectToWifi()
 {
     uint16_t Timeout = 150; // 15 sec
-    if(_searchWifiSsid())
+    if(_wifiMode == WIFI_MODE_STA_AP)
+    switch (_wifiMode)
     {
+    case WIFI_MODE_STA_AP:
+        if(_ApSSID == "" || _ApPasswd == ""){
+            _panic();
+        }
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(_ApSSID.c_str(), _ApPasswd.c_str());
+        if(!_searchWifiSsid()){
+            WriteWifiDebugLog("Nessuna rete trovata con SSID \"" + _SSID + "\"");
+        }
         WiFi.setHostname(_hostname.c_str());
         WiFi.begin(_SSID.c_str(), _Passwd.c_str());
         WriteWifiDebugLog("Connessione in corso...");
@@ -93,21 +126,45 @@ void Esp32Wifi::_connectToWifi()
             else
             {
                 _wifiConnected = true;
+                WriteWifiDebugLog("Connesso all rete " + _SSID);
             }
             delay(100);
         }
-        if(_wifiConnected)
-        {
-            WriteWifiDebugLog("Connesso all rete " + _SSID);
+        break;
+    case WIFI_MODE_STATION:
+        WiFi.mode(WIFI_STA);
+        if(!_searchWifiSsid()){
+            WriteWifiDebugLog("Nessuna rete trovata con SSID \"" + _SSID + "\"");
         }
-        else
+        WiFi.setHostname(_hostname.c_str());
+        WiFi.begin(_SSID.c_str(), _Passwd.c_str());
+        WriteWifiDebugLog("Connessione in corso...");
+        while(!_wifiConnected && Timeout > 0)
         {
-            WriteWifiDebugLog("Connessione non riuscita");
+            if(WiFi.status() != WL_CONNECTED)
+            {
+                Timeout--;
+                _wifiConnected = false;
+            }
+            else
+            {
+                _wifiConnected = true;
+                WriteWifiDebugLog("Connesso all rete " + _SSID);
+            }
+            delay(100);
+        }    
+        break;
+    case WIFI_MODE_ACCESS_POINT:
+        if(_ApSSID == "" || _ApPasswd == ""){
+            _panic();
         }
-    }
-    else
-    {
-        WriteWifiDebugLog("Nessuna rete trovata con SSID \"" + _SSID + "\"");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(_ApSSID.c_str(), _ApPasswd.c_str());
+        _wifiConnected = true;
+        break;
+    default:
+        _panic();
+        break;
     }
 }
 
@@ -116,7 +173,7 @@ void Esp32Wifi::_connectToWifi()
  * 
  * @return uint32_t ts
  */
-uint32_t Esp32Wifi::_getTimestamp()
+uint32_t EspWifi::_getTimestamp()
 {
     uint32_t ts = 0;
     if(_wifiConnected)
@@ -136,7 +193,7 @@ uint32_t Esp32Wifi::_getTimestamp()
  * 
  * @return String TimeStr
  */
-String Esp32Wifi::_getTimeFormatted()
+String EspWifi::_getTimeFormatted()
 {
     uint8_t Hour = 0, Minute = 0;
     String TimeStr = "";
@@ -153,7 +210,7 @@ String Esp32Wifi::_getTimeFormatted()
  * 
  * @return String DateStr
  */
-String Esp32Wifi::_getDateFormatted()
+String EspWifi::_getDateFormatted()
 {
     uint8_t Day = 0, Month = 0, Year = 0;
     String DateStr = "";
@@ -170,7 +227,7 @@ String Esp32Wifi::_getDateFormatted()
  * 
  * @return [String] Weekday 
  */
-String Esp32Wifi::_getWeekday()
+String EspWifi::_getWeekday()
 {
     std::tm *locTime = std::localtime(&_ntpTimeStamp);
     if(locTime->tm_wday >= 0 && locTime->tm_wday <= 6)
@@ -183,7 +240,7 @@ String Esp32Wifi::_getWeekday()
  * @brief Inserisce uno shift dell'ora in caso di ora legale/solare
  * 
  */
-void Esp32Wifi::_legalHourShift()
+void EspWifi::_legalHourShift()
 {
     uint8_t WeekDay = 0, Month = 0, MonthDay = 0;
     bool LegalHourShift = false;
@@ -219,7 +276,17 @@ void Esp32Wifi::_legalHourShift()
  * 
  * @return [String] Ip 
  */
-String Esp32Wifi::getMyIp()
+String EspWifi::getApIp()
+{
+    return _apIp.toString();
+}
+
+/**
+ * @brief Restituisce l'ip assegnato
+ * 
+ * @return [String] Ip 
+ */
+String EspWifi::getMyIp()
 {
     return _myIp.toString();
 }
@@ -229,7 +296,7 @@ String Esp32Wifi::getMyIp()
  * 
  * @param String Hostname 
  */
-void Esp32Wifi::setHostname(String Hostname)
+void EspWifi::setHostname(String Hostname)
 {
     if(Hostname.length() > 0)
     {
@@ -242,7 +309,7 @@ void Esp32Wifi::setHostname(String Hostname)
  * 
  * @param String SSID 
  */
-void Esp32Wifi::setWifiSSID(String SSID)
+void EspWifi::setWifiSSID(String SSID)
 {
     if(SSID != "" && SSID != _SSID)
     {
@@ -255,7 +322,7 @@ void Esp32Wifi::setWifiSSID(String SSID)
  * 
  * @param String Passwd 
  */
-void Esp32Wifi::setWifiPasswd(String Passwd)
+void EspWifi::setWifiPasswd(String Passwd)
 {
     if(Passwd != "" && _Passwd != Passwd)
     {
@@ -268,7 +335,7 @@ void Esp32Wifi::setWifiPasswd(String Passwd)
  * 
  * @return [bool] connected 
  */
-bool Esp32Wifi::wifiConnected()
+bool EspWifi::wifiConnected()
 {
     return _wifiConnected;
 }
@@ -278,14 +345,16 @@ bool Esp32Wifi::wifiConnected()
  * 
  * @return [bool] Connected 
  */
-bool Esp32Wifi::initWifi()
+bool EspWifi::initWifi()
 {
     _connectToWifi();
     delay(1000);
     if(_wifiConnected)
     {
         _timeClient->begin();
-        _myIp = WiFi.localIP();
+        if(_wifiMode == WIFI_MODE_STATION || _wifiMode == WIFI_MODE_STA_AP){
+            _myIp = WiFi.localIP();
+        }
         WriteWifiDebugLog("Assegnato IP: " + _myIp.toString());
     }
     else
@@ -304,31 +373,37 @@ bool Esp32Wifi::initWifi()
  *          effettua l'update dell'NTP
  * 
  */
-void Esp32Wifi::runWifi()
+void EspWifi::runWifi()
 {
     switch (_wifiRunState)
     {
     case WIFI_CHECK_CONNECTION_STATE:
-        if(WiFi.status() != WL_CONNECTED)
+        if(_wifiMode == WIFI_MODE_ACCESS_POINT){
+            _wifiRunState = WIFI_AP_MODE_STATE;
+        } 
+        else 
         {
-            _wifiRunState = WIFI_GET_LOCAL_TIME_STATE;
-            _wifiConnected = false;
-            WiFi.disconnect();
-            WriteWifiDebugLog("Wifi disconnesso, riprovo la connessione");
-        }
-        else
-        {
-            if(getMyIp().compareTo("0.0.0.0") == 0)
+            if(WiFi.status() != WL_CONNECTED)
             {
                 _wifiRunState = WIFI_GET_LOCAL_TIME_STATE;
                 _wifiConnected = false;
                 WiFi.disconnect();
-                WriteWifiDebugLog("Ottenuto IP invalido, mi disconnetto e riprovo la connessione");
+                WriteWifiDebugLog("Wifi disconnesso, riprovo la connessione");
             }
             else
             {
-                _wifiConnected = true;
-                _wifiRunState = WIFI_GET_NETWORK_TIME_STATE;
+                if(getMyIp().compareTo("0.0.0.0") == 0)
+                {
+                    _wifiRunState = WIFI_GET_LOCAL_TIME_STATE;
+                    _wifiConnected = false;
+                    WiFi.disconnect();
+                    WriteWifiDebugLog("Ottenuto IP invalido, mi disconnetto e riprovo la connessione");
+                }
+                else
+                {
+                    _wifiConnected = true;
+                    _wifiRunState = WIFI_GET_NETWORK_TIME_STATE;
+                }
             }
         }
         break;
@@ -376,6 +451,9 @@ void Esp32Wifi::runWifi()
         }
         _reconnectTimer = millis();
         _wifiRunState = WIFI_WAIT_FOR_CONNECTION_STATE;
+        break;
+    case WIFI_AP_MODE_STATE:
+        /* NOTHING TO DO, JUST KEEP THE CONNECTION */
         break;
     default:
         break;

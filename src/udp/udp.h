@@ -13,7 +13,16 @@
 #define UDP_H
 
 #include <Arduino.h>
-#include <WiFi.h>
+
+#ifdef ESP32			
+	#include <WiFi.h>
+#else
+#ifdef ESP8266
+	#include <ESP8266WiFi.h>
+#endif
+
+#endif
+
 #include <WiFiUdp.h>
 #include <stdint.h> 
 

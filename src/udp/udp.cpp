@@ -44,7 +44,14 @@ int8_t UdpTalker::init(const char *LocalIp, const char *MasterIp, uint16_t Maste
 		_masterIpAddress.fromString(MasterIp);
 		if(LocalIpAddr.fromString(LocalIp))
 		{
+#ifdef ESP32			
 			_udpManager->begin(LocalIpAddr, _masterPort);
+#else
+#ifdef ESP8266
+			_udpManager->begin(_masterPort);
+#endif
+
+#endif
 			_isSettingUp = true;
 			Ret = 1;
 		}
@@ -67,11 +74,22 @@ int8_t UdpTalker::init(IPAddress LocalIp, IPAddress MasterIp, uint16_t MasterPor
 	{
 		_masterPort = MasterPort;
 		_masterIpAddress = MasterIp;
+#ifdef ESP32			
 		if(_udpManager->begin(LocalIp, _masterPort) > 0)
 		{
 			_isSettingUp = true;
 			Ret = 1;
 		}
+#else
+#ifdef ESP8266
+		if(_udpManager->begin(_masterPort) > 0)
+		{
+			_isSettingUp = true;
+			Ret = 1;
+		}
+#endif
+
+#endif		
 	}
 	return Ret;
 }
