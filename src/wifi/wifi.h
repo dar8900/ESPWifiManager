@@ -27,7 +27,7 @@
 #endif
 #include <WiFiUdp.h>
 
-#define WIFI_MANAGER_LOG_ENABLE     0
+#define WIFI_MANAGER_LOG_ENABLE     1
 
 #if WIFI_MANAGER_LOG_ENABLE
 #pragma message("Wifi manager debug log ENABLED")

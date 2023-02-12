@@ -101,7 +101,6 @@ bool EspWifi::_searchWifiSsid()
 void EspWifi::_connectToWifi()
 {
     uint16_t Timeout = 150; // 15 sec
-    if(_wifiMode == WIFI_MODE_STA_AP)
     switch (_wifiMode)
     {
     case WIFI_MODE_STA_AP:
@@ -159,7 +158,9 @@ void EspWifi::_connectToWifi()
             _panic();
         }
         WiFi.mode(WIFI_AP);
+        WiFi.softAPConfig(IPAddress(192, 168, 1, 1), IPAddress(192, 168, 1, 254), IPAddress(255, 255, 255, 0));
         WiFi.softAP(_ApSSID.c_str(), _ApPasswd.c_str());
+        WriteWifiDebugLog("AP STARTED");
         _wifiConnected = true;
         break;
     default:
@@ -354,8 +355,13 @@ bool EspWifi::initWifi()
         _timeClient->begin();
         if(_wifiMode == WIFI_MODE_STATION || _wifiMode == WIFI_MODE_STA_AP){
             _myIp = WiFi.localIP();
+            _apIp = WiFi.localIP();
+            WriteWifiDebugLog("Assegnato IP: " + _myIp.toString());
+        } else {
+            _apIp = WiFi.localIP();         
+            WriteWifiDebugLog("Assegnato IP: " + _apIp.toString());
         }
-        WriteWifiDebugLog("Assegnato IP: " + _myIp.toString());
+        
     }
     else
     {
