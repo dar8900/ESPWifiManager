@@ -65,8 +65,6 @@ void EspWifi::_panic()
  */
 bool EspWifi::_searchWifiSsid()
 {
-    const uint32_t SCAN_PERIOD = 10000;
-    uint32_t ScanTime = 0;
     bool SsidFoud = false;
     WriteWifiDebugLog("Ora scansiono le reti wifi");
     WiFi.scanNetworks();
