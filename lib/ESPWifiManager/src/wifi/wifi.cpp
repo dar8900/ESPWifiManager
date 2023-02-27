@@ -73,7 +73,6 @@ bool EspWifi::_searchWifiSsid()
     int N_SSID = WiFi.scanComplete();
     if(N_SSID >= 0 && _SSID != "" && _Passwd != "")
     {
-        bool FoundWifi = false;
         WriteWifiDebugLog("Trovate " + String(N_SSID) + " reti");
         for(int j = 0; j < N_SSID; j++)
         {
